@@ -16,6 +16,10 @@ class HeliosPoint(ctypes.Structure):
     ]
 
 
+# Helios DAC uses 12 bits (unsigned) for x and y
+XY_BOUNDS = (4095, 4095)
+
+
 class HeliosDAC(LaserDAC):
     def __init__(self):
         self.points = []
@@ -39,15 +43,28 @@ class HeliosDAC(LaserDAC):
         self.color = (r, g, b, i)
 
     def add_point(self, x, y):
+        if x < 0 or x > XY_BOUNDS[0] or y < 0 or y > XY_BOUNDS[1]:
+            return
+
         with self.points_lock:
             self.points.append((x, y))
+
+    def get_bounds(self, offset=0):
+        """Return an array of points representing the corners of the outer bounds"""
+        # Helios DAC uses 12 bits (unsigned) for x and y
+        return [
+            (offset, offset),
+            (offset, XY_BOUNDS[1] - offset),
+            (XY_BOUNDS[0] - offset, XY_BOUNDS[1] - offset),
+            (XY_BOUNDS[0] - offset, offset),
+        ]
 
     def clear_points(self):
         with self.points_lock:
             self.points.clear()
 
     def _get_frame(self, fps=30, pps=30000, transition_duration_ms=0.5):
-        """Return an array of points representing the next frame that should be rendered.
+        """Return an array of HeliosPoints representing the next frame that should be rendered.
 
         :param fps: target frames per second
         :param pps: target points per second. This should not exceed the capability of the DAC and laser projector.
@@ -88,8 +105,8 @@ class HeliosDAC(LaserDAC):
                         )
                         frameLaxelIdx = pointIdx * laxels_per_point + laxelIdx
                         frame[frameLaxelIdx] = HeliosPoint(
-                            point[0],
-                            point[1],
+                            int(point[0]),
+                            int(point[1]),
                             0 if isTransition else self.color[0],
                             0 if isTransition else self.color[1],
                             0 if isTransition else self.color[2],
@@ -98,7 +115,9 @@ class HeliosDAC(LaserDAC):
             return frame
 
     def play(self, fps=30, pps=30000, transition_duration_ms=0.5):
-        """Start playback of points
+        """Start playback of points.
+        Helios max rate: 65535 pps
+        Helios max points per frame (pps/fps): 4096
 
         :param fps: target frames per second
         :param pps: target points per second. This should not exceed the capability of the DAC and laser projector.
@@ -124,15 +143,18 @@ class HeliosDAC(LaserDAC):
                 )
             self.helios_lib.Stop(0)
 
-        self.playing = True
-        self.playback_thread = threading.Thread(
-            name="playback_thread", target=playback_thread
-        )
-        self.playback_thread.start()
+        if not self.playing:
+            self.playing = True
+            self.playback_thread = threading.Thread(
+                name="playback_thread", target=playback_thread
+            )
+            self.playback_thread.start()
 
     def stop(self):
-        self.playing = False
-        self.playback_thread.join()
+        if self.playing:
+            self.playing = False
+            self.playback_thread.join()
+            self.playback_thread = None
 
     def close(self):
         self.helios_lib.CloseDevices()
