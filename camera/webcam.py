@@ -1,31 +1,41 @@
 import cv2 as cv
+import time
+import threading
 
 
 class Webcam:
     def __init__(self, device_idx):
-        self.cap = cv.VideoCapture(device_idx)
+        self.capture = cv.VideoCapture(device_idx)
+        self.capture.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc("M", "J", "P", "G"))
+        self.capture.set(cv.CAP_PROP_FPS, 30)
+        self.capture.set(cv.CAP_PROP_BUFFERSIZE, 2)
+        self.capture.set(cv.CAP_PROP_AUTO_EXPOSURE, 0)
+        self.capture.set(cv.CAP_PROP_EXPOSURE, -6)
+
+        def capture_thread():
+            while True:
+                if self.capture.isOpened():
+                    (self.status, self.frame) = self.capture.read()
+                time.sleep(1 / self.get_fps())
+
+        # Start frame capture thread
+        self.capture_thread = threading.Thread(target=capture_thread, daemon=True)
+        self.capture_thread.start()
 
     def get_frame(self):
-        if not self.cap or not self.cap.isOpened():
-            return None
-
-        result, frame = self.cap.read()
-        if not result:
-            return None
-
-        return frame
+        return self.frame
 
     def get_frame_size(self):
-        if not self.cap or not self.cap.isOpened():
+        if not self.capture.isOpened():
             return None
 
         return (
-            self.cap.get(cv.CAP_PROP_FRAME_WIDTH),
-            self.cap.get(cv.CAP_PROP_FRAME_HEIGHT),
+            self.capture.get(cv.CAP_PROP_FRAME_WIDTH),
+            self.capture.get(cv.CAP_PROP_FRAME_HEIGHT),
         )
 
     def get_fps(self):
-        if not self.cap or not self.cap.isOpened():
+        if not self.capture.isOpened():
             return 0
 
-        self.cap.get(cv.CAP_PROP_FPS)
+        return self.capture.get(cv.CAP_PROP_FPS)

@@ -42,13 +42,6 @@ class HeliosDAC(LaserDAC):
     def set_color(self, r=255, g=255, b=255, i=255):
         self.color = (r, g, b, i)
 
-    def add_point(self, x, y):
-        if x < 0 or x > XY_BOUNDS[0] or y < 0 or y > XY_BOUNDS[1]:
-            return
-
-        with self.points_lock:
-            self.points.append((x, y))
-
     def get_bounds(self, offset=0):
         """Return an array of points representing the corners of the outer bounds"""
         # Helios DAC uses 12 bits (unsigned) for x and y
@@ -58,6 +51,19 @@ class HeliosDAC(LaserDAC):
             (XY_BOUNDS[0] - offset, XY_BOUNDS[1] - offset),
             (XY_BOUNDS[0] - offset, offset),
         ]
+
+    def add_point(self, x, y):
+        if x < 0 or x > XY_BOUNDS[0] or y < 0 or y > XY_BOUNDS[1]:
+            return
+
+        with self.points_lock:
+            self.points.append((x, y))
+
+    def remove_point(self):
+        """Remove the last added point."""
+        with self.points_lock:
+            if self.points:
+                self.points.pop()
 
     def clear_points(self):
         with self.points_lock:
@@ -145,9 +151,7 @@ class HeliosDAC(LaserDAC):
 
         if not self.playing:
             self.playing = True
-            self.playback_thread = threading.Thread(
-                name="playback_thread", target=playback_thread
-            )
+            self.playback_thread = threading.Thread(target=playback_thread, daemon=True)
             self.playback_thread.start()
 
     def stop(self):

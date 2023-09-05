@@ -34,16 +34,23 @@ layout = [
     [sg.Button("Calibrate")],
     [
         sg.Text(
-            "1. Click Play to start the laser.\n2. Click below to add points.\n3. Click Clear to clear points.\n4. Click Stop to stop the laser."
+            "1. Click Play to start the laser.\n2. Click below to add points. Drag to track the cursor.\n3. Click Undo to remove last point.\n4. Click Clear to clear points.\n5. Click Stop to stop the laser."
         )
     ],
-    [sg.Button("Play"), sg.Button("Clear"), sg.Button("Stop"), sg.Button("Quit")],
+    [
+        sg.Button("Play"),
+        sg.Button("Undo"),
+        sg.Button("Clear"),
+        sg.Button("Stop"),
+        sg.Button("Quit"),
+    ],
     [
         sg.Graph(
             canvas_size=camera_preview_size,
             graph_bottom_left=(0, 0),
             graph_top_right=camera_preview_size,
             enable_events=True,
+            drag_submits=True,
             key="-WEBCAM_FRAME-",
         )
     ],
@@ -71,10 +78,13 @@ def update_camera_frame(cam):
         frame, width=camera_preview_size[0], height=camera_preview_size[1]
     )
     imgbytes = cv.imencode(".png", frame)[1].tobytes()
+    window["-WEBCAM_FRAME-"].erase()
     window["-WEBCAM_FRAME-"].draw_image(
         data=imgbytes, location=(0, camera_preview_size[1])
     )
 
+
+isTracking = False
 
 # GUI event loop
 while True:
@@ -91,16 +101,21 @@ while True:
         # Preview coordinates have (0, 0) at bottom left
         # Camera frame coordinates have (0, 0) at top left
         x, y = values[event]
-        print(f"Preview coord: {x}, {y}")
         camera_pt = (
             camera_frame_size[0] / camera_preview_size[0] * x,
             -camera_frame_size[1] / camera_preview_size[1] * y + camera_frame_size[1],
         )
-        print(f"Camera frame coord: {camera_pt[0]}, {camera_pt[1]}")
         # Transform camera frame coordinates to laser coordinates
         laser_pt = camera_to_laser(camera_pt)
-        print(f"Laser coord: {laser_pt[0]}, {laser_pt[1]}")
+
+        if isTracking:
+            # This is an existing point, so remove the last point
+            laser.remove_point()
+
+        isTracking = True
         laser.add_point(laser_pt[0], laser_pt[1])
+    elif event == "-WEBCAM_FRAME-+UP":
+        isTracking = False
     elif event == "Calibrate":
         # TODO: run calibration on background thread
         camera_to_laser_transform = calibration.calibrate(cam, laser)
@@ -108,6 +123,8 @@ while True:
     elif event == "Play":
         laser.clear_points()
         laser.play()
+    elif event == "Undo":
+        laser.remove_point()
     elif event == "Clear":
         laser.clear_points()
     elif event == "Stop":
