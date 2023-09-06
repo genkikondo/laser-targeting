@@ -108,12 +108,13 @@ while True:
         # Transform camera frame coordinates to laser coordinates
         laser_pt = camera_to_laser(camera_pt)
 
-        if isTracking:
-            # This is an existing point, so remove the last point
-            laser.remove_point()
+        if laser.in_bounds(laser_pt):
+            if isTracking:
+                # This is an existing point, so remove the last point
+                laser.remove_point()
 
-        isTracking = True
-        laser.add_point(laser_pt[0], laser_pt[1])
+            isTracking = True
+            laser.add_point(laser_pt[0], laser_pt[1])
     elif event == "-WEBCAM_FRAME-+UP":
         isTracking = False
     elif event == "Calibrate":

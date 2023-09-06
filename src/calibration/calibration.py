@@ -110,7 +110,7 @@ def get_camera_point_for_laser_point(camera, laser_dac, laser_point, bg_frame=No
     laser_dac.add_point(laser_point[0], laser_point[1])
     laser_dac.play()
 
-    time.sleep(2)
+    time.sleep(0.5)
 
     try:
         frame = camera.get_frame()

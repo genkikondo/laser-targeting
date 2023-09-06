@@ -9,8 +9,6 @@ class Webcam:
         self.capture.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc("M", "J", "P", "G"))
         self.capture.set(cv.CAP_PROP_FPS, 30)
         self.capture.set(cv.CAP_PROP_BUFFERSIZE, 2)
-        self.capture.set(cv.CAP_PROP_AUTO_EXPOSURE, 0)
-        self.capture.set(cv.CAP_PROP_EXPOSURE, -6)
 
         def capture_thread():
             while True:

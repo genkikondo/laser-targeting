@@ -32,7 +32,7 @@ class HeliosDAC(LaserDAC):
         # Load and initialize library
         # TODO: don't use relative path
         deps_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "deps"
+            os.path.dirname(os.path.abspath(__file__)), "..", "..", "deps"
         )
         helios_libfile = os.path.join(deps_dir, "helios_dac", "libHeliosDacAPI.dylib")
         self.helios_lib = ctypes.cdll.LoadLibrary(helios_libfile)
@@ -52,12 +52,13 @@ class HeliosDAC(LaserDAC):
             (XY_BOUNDS[0] - offset, offset),
         ]
 
-    def add_point(self, x, y):
-        if x < 0 or x > XY_BOUNDS[0] or y < 0 or y > XY_BOUNDS[1]:
-            return
+    def in_bounds(self, x, y):
+        return x >= 0 and x <= XY_BOUNDS[0] and y >= 0 and y <= XY_BOUNDS[1]
 
-        with self.points_lock:
-            self.points.append((x, y))
+    def add_point(self, x, y):
+        if self.in_bounds(x, y):
+            with self.points_lock:
+                self.points.append((x, y))
 
     def remove_point(self):
         """Remove the last added point."""
