@@ -29,12 +29,15 @@ class EtherDreamError(Exception):
 # Ether Dream DAC uses 16 bits (signed) for x and y
 XY_BOUNDS = (-32768, 32767)
 
+# Ether Dream DAC uses 16 bits (unsigned) for r, g, b, i
+MAX_COLOR = 65535
+
 
 class EtherDreamDAC(LaserDAC):
     def __init__(self):
         self.points = []
         self.points_lock = threading.Lock()
-        self.color = (65535, 65535, 65535, 65535)  # (r, g, b, i)
+        self.color = (1, 1, 1, 1)  # (r, g, b, i)
         self.playing = False
         self.connected_dac_id = 0
 
@@ -69,7 +72,7 @@ class EtherDreamDAC(LaserDAC):
         self.connected_dac_id = dac_id
         print(f"Connected to DAC with ID: {hex(dac_id)}")
 
-    def set_color(self, r=65535, g=65535, b=65535, i=65535):
+    def set_color(self, r=1, g=1, b=1, i=1):
         self.color = (r, g, b, i)
 
     def get_bounds(self, offset=0):
@@ -149,10 +152,10 @@ class EtherDreamDAC(LaserDAC):
                         frame[frameLaxelIdx] = EtherDreamPoint(
                             int(point[0]),
                             int(point[1]),
-                            0 if isTransition else self.color[0],
-                            0 if isTransition else self.color[1],
-                            0 if isTransition else self.color[2],
-                            0 if isTransition else self.color[3],
+                            0 if isTransition else int(self.color[0] * MAX_COLOR),
+                            0 if isTransition else int(self.color[1] * MAX_COLOR),
+                            0 if isTransition else int(self.color[2] * MAX_COLOR),
+                            0 if isTransition else int(self.color[3] * MAX_COLOR),
                             0,
                             0,
                         )

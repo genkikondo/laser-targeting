@@ -19,12 +19,15 @@ class HeliosPoint(ctypes.Structure):
 # Helios DAC uses 12 bits (unsigned) for x and y
 XY_BOUNDS = (4095, 4095)
 
+# Helios DAC uses 8 bits (unsigned) for r, g, b, i
+MAX_COLOR = 255
+
 
 class HeliosDAC(LaserDAC):
     def __init__(self):
         self.points = []
         self.points_lock = threading.Lock()
-        self.color = (255, 255, 255, 255)  # (r, g, b, i)
+        self.color = (1, 1, 1, 1)  # (r, g, b, i)
         self.playing = False
         self.dac_idx = 0
 
@@ -45,7 +48,7 @@ class HeliosDAC(LaserDAC):
     def set_dac_idx(self, dac_idx):
         self.dac_idx = dac_idx
 
-    def set_color(self, r=255, g=255, b=255, i=255):
+    def set_color(self, r=1, g=1, b=1, i=1):
         self.color = (r, g, b, i)
 
     def get_bounds(self, offset=0):
@@ -120,10 +123,10 @@ class HeliosDAC(LaserDAC):
                         frame[frameLaxelIdx] = HeliosPoint(
                             int(point[0]),
                             int(point[1]),
-                            0 if isTransition else self.color[0],
-                            0 if isTransition else self.color[1],
-                            0 if isTransition else self.color[2],
-                            0 if isTransition else self.color[3],
+                            0 if isTransition else int(self.color[0] * MAX_COLOR),
+                            0 if isTransition else int(self.color[1] * MAX_COLOR),
+                            0 if isTransition else int(self.color[2] * MAX_COLOR),
+                            0 if isTransition else int(self.color[3] * MAX_COLOR),
                         )
             return frame
 

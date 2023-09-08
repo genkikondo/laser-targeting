@@ -15,7 +15,7 @@ def calibrate(camera, laser):
     print("Calibrating...")
     laser.stop()
     laser.clear_points()
-    laser.set_color(100, 0, 0, 10)
+    laser.set_color(1, 0, 0, 0.1)
     calibration_points = (
         laser.get_bounds() + laser.get_bounds(500) + laser.get_bounds(1000)
     )

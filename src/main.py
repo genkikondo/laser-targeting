@@ -34,11 +34,24 @@ available_cameras = find_cameras()
 cam = camera.Webcam(available_cameras[0])
 
 available_dacs = []
-laser = dac.HeliosDAC()
-num_helios_dacs = laser.initialize()
+
+laser = None
+helios_dac = dac.HeliosDAC()
+helios_dac.set_color(1, 0, 0, 0.1)
+num_helios_dacs = helios_dac.initialize()
 for i in range(num_helios_dacs):
     available_dacs.append((f"Helios DAC: {i}", "helios", i))
-laser.set_color(255, 0, 0, 10)
+if num_helios_dacs > 0:
+    laser = helios_dac
+
+etherdream_dac = dac.EtherDreamDAC()
+etherdream_dac.set_color(1, 0, 0, 0.1)
+num_etherdream_dacs = etherdream_dac.initialize()
+for i in range(num_helios_dacs):
+    available_dacs.append((f"Ether Dream DAC: {i}", "etherdream", i))
+if laser is None and num_etherdream_dacs > 0:
+    etherdream_dac.connect(0)
+    laser = etherdream_dac
 
 camera_to_laser_transform = np.identity(3)
 
@@ -146,10 +159,14 @@ while True:
     elif event == "-CAMERA_SELECTION-":
         cam = camera.Webcam(values[event])
     elif event == "-DAC_SELECTION-":
-        for d in available_dacs:
-            if d[0] == values[event]:
-                # TODO: set the DAC to the selected one
-                print(f"DAC SELECTED: {values[event]}")
+        for dac_name, dac_type, dac_idx in available_dacs:
+            if dac_name == values[event]:
+                if dac_type == "helios":
+                    laser = helios_dac
+                    laser.set_dac_idx(dac_idx)
+                elif dac_type == "etherdream":
+                    laser = etherdream_dac
+                    laser.connect(dac_idx)
     elif event == "-WEBCAM_FRAME-":
         # Transform preview coordinates to camera frame coordinates
         # Preview coordinates have (0, 0) at bottom left
@@ -162,7 +179,7 @@ while True:
         # Transform camera frame coordinates to laser coordinates
         laser_pt = camera_to_laser(camera_pt)
 
-        if laser.in_bounds(laser_pt):
+        if laser.in_bounds(laser_pt[0], laser_pt[1]):
             if isTracking:
                 # This is an existing point, so remove the last point
                 laser.remove_point()
