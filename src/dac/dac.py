@@ -15,6 +15,10 @@ class LaserDAC(ABC):
         pass
 
     @abstractmethod
+    def remove_point(self):
+        pass
+
+    @abstractmethod
     def clear_points(self):
         pass
 

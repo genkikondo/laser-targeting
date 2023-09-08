@@ -2,64 +2,93 @@ import ctypes
 from .dac import LaserDAC
 import os
 import threading
+import time
+import ether_dream
 
 
-# Define point structure for Helios
-class HeliosPoint(ctypes.Structure):
+# Define point structure for Ether Dream
+class EtherDreamPoint(ctypes.Structure):
     _fields_ = [
-        ("x", ctypes.c_uint16),
-        ("y", ctypes.c_uint16),
-        ("r", ctypes.c_uint8),
-        ("g", ctypes.c_uint8),
-        ("b", ctypes.c_uint8),
-        ("i", ctypes.c_uint8),
+        ("x", ctypes.c_int16),
+        ("y", ctypes.c_int16),
+        ("r", ctypes.c_uint16),
+        ("g", ctypes.c_uint16),
+        ("b", ctypes.c_uint16),
+        ("i", ctypes.c_uint16),
+        ("u1", ctypes.c_uint16),
+        ("u2", ctypes.c_uint16),
     ]
 
 
-# Helios DAC uses 12 bits (unsigned) for x and y
-XY_BOUNDS = (4095, 4095)
+class EtherDreamError(Exception):
+    """Exception used when an error is detected with EtherDream."""
+
+    pass
 
 
-class HeliosDAC(LaserDAC):
+# Ether Dream DAC uses 16 bits (signed) for x and y
+XY_BOUNDS = (-32768, 32767)
+
+
+class EtherDreamDAC(LaserDAC):
     def __init__(self):
         self.points = []
         self.points_lock = threading.Lock()
-        self.color = (255, 255, 255, 255)  # (r, g, b, i)
+        self.color = (65535, 65535, 65535, 65535)  # (r, g, b, i)
         self.playing = False
-        self.dac_idx = 0
+        self.connected_dac_id = 0
 
         # Load library
         # TODO: don't use relative path
         deps_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "..", "..", "deps"
         )
-        helios_libfile = os.path.join(deps_dir, "helios_dac", "libHeliosDacAPI.dylib")
-        self.helios_lib = ctypes.cdll.LoadLibrary(helios_libfile)
+        self.etherdream_lib = ctypes.cdll.LoadLibrary(
+            os.path.join(deps_dir, "ether_dream", "libEtherDream.dylib")
+        )
 
     def initialize(self):
-        print("Initializing Helios DAC")
-        num_devices = self.helios_lib.OpenDevices()
-        print(f"Found {num_devices} Helios DACs")
-        return num_devices
+        """Initialize the native library and search for online DACs"""
 
-    def set_dac_idx(self, dac_idx):
-        self.dac_idx = dac_idx
+        print("Initializing Ether Dream DAC")
+        self.etherdream_lib.etherdream_lib_start()
+        print("Finding available Ether Dream DACs...")
 
-    def set_color(self, r=255, g=255, b=255, i=255):
+        # Ether Dream DACs broadcast once per second, so we need to wait for a bit
+        # longer than that to ensure that we see broadcasts from all online DACs
+        time.sleep(1.2)
+
+        dac_count = self.etherdream_lib.etherdream_dac_count()
+        print(f"Found {dac_count} Ether Dream DACs")
+
+    def connect(self, dac_idx):
+        print("Connecting to DAC...")
+        dac_id = self.etherdream_lib.etherdream_get_id(dac_idx)
+        if self.etherdream_lib.etherdream_connect(dac_id) < 0:
+            raise EtherDreamError(f"Could not connect to DAC [{hex(dac_id)}]")
+        self.connected_dac_id = dac_id
+        print(f"Connected to DAC with ID: {hex(dac_id)}")
+
+    def set_color(self, r=65535, g=65535, b=65535, i=65535):
         self.color = (r, g, b, i)
 
     def get_bounds(self, offset=0):
         """Return an array of points representing the corners of the outer bounds"""
-        # Helios DAC uses 12 bits (unsigned) for x and y
+        # Ether Dream DAC uses 16 bits (signed) for x and y
         return [
-            (offset, offset),
-            (offset, XY_BOUNDS[1] - offset),
-            (XY_BOUNDS[0] - offset, XY_BOUNDS[1] - offset),
-            (XY_BOUNDS[0] - offset, offset),
+            (XY_BOUNDS[0] + offset, XY_BOUNDS[0] + offset),
+            (XY_BOUNDS[0] + offset, XY_BOUNDS[1] - offset),
+            (XY_BOUNDS[1] - offset, XY_BOUNDS[1] - offset),
+            (XY_BOUNDS[1] - offset, XY_BOUNDS[0] + offset),
         ]
 
     def in_bounds(self, x, y):
-        return x >= 0 and x <= XY_BOUNDS[0] and y >= 0 and y <= XY_BOUNDS[1]
+        return (
+            x >= XY_BOUNDS[0]
+            and x <= XY_BOUNDS[1]
+            and y >= XY_BOUNDS[0]
+            and y <= XY_BOUNDS[1]
+        )
 
     def add_point(self, x, y):
         if self.in_bounds(x, y):
@@ -77,7 +106,7 @@ class HeliosDAC(LaserDAC):
             self.points.clear()
 
     def _get_frame(self, fps=30, pps=30000, transition_duration_ms=0.5):
-        """Return an array of HeliosPoints representing the next frame that should be rendered.
+        """Return an array of EtherDreamPoints representing the next frame that should be rendered.
 
         :param fps: target frames per second
         :param pps: target points per second. This should not exceed the capability of the DAC and laser projector.
@@ -102,13 +131,13 @@ class HeliosDAC(LaserDAC):
             )
 
             # Prepare frame
-            FrameType = HeliosPoint * (laxels_per_frame)
+            FrameType = EtherDreamPoint * (laxels_per_frame)
             frame = FrameType()
 
             if num_points == 0:
                 # Even if there are no points to render, we still to send over laxels so that we don't underflow the DAC buffer
                 for frameLaxelIdx in range(laxels_per_frame):
-                    frame[frameLaxelIdx] = HeliosPoint(0, 0, 0, 0, 0, 0)
+                    frame[frameLaxelIdx] = EtherDreamPoint(0, 0, 0, 0, 0, 0, 0, 0)
             else:
                 for pointIdx, point in enumerate(self.points):
                     for laxelIdx in range(laxels_per_point):
@@ -117,20 +146,21 @@ class HeliosDAC(LaserDAC):
                             num_points > 1 and laxelIdx < laxels_per_transition
                         )
                         frameLaxelIdx = pointIdx * laxels_per_point + laxelIdx
-                        frame[frameLaxelIdx] = HeliosPoint(
+                        frame[frameLaxelIdx] = EtherDreamPoint(
                             int(point[0]),
                             int(point[1]),
                             0 if isTransition else self.color[0],
                             0 if isTransition else self.color[1],
                             0 if isTransition else self.color[2],
                             0 if isTransition else self.color[3],
+                            0,
+                            0,
                         )
             return frame
 
     def play(self, fps=30, pps=30000, transition_duration_ms=0.5):
         """Start playback of points.
-        Helios max rate: 65535 pps
-        Helios max points per frame (pps/fps): 4096
+        Ether Dream max rate: 100K pps
 
         :param fps: target frames per second
         :param pps: target points per second. This should not exceed the capability of the DAC and laser projector.
@@ -142,22 +172,17 @@ class HeliosDAC(LaserDAC):
         def playback_thread():
             while self.playing:
                 frame = self._get_frame(fps, pps, transition_duration_ms)
-                statusAttempts = 0
-                # Make 512 attempts for DAC status to be ready. After that, just give up and try to write the frame anyway
-                while (
-                    statusAttempts < 512
-                    and self.helios_lib.GetStatus(self.dac_idx) != 1
-                ):
-                    statusAttempts += 1
 
-                self.helios_lib.WriteFrame(
-                    self.dac_idx,
-                    len(frame) * fps,
-                    0,
+                self.etherdream_lib.etherdream_wait_for_ready(self.connected_dac_id)
+
+                self.etherdream_lib.etherdream_write(
+                    self.connected_dac_id,
                     ctypes.pointer(frame),
                     len(frame),
+                    len(frame) * fps,
+                    1,
                 )
-            self.helios_lib.Stop(self.dac_idx)
+            self.etherdream_lib.etherdream_stop(self.connected_dac_id)
 
         if not self.playing:
             self.playing = True
@@ -171,4 +196,6 @@ class HeliosDAC(LaserDAC):
             self.playback_thread = None
 
     def close(self):
-        self.helios_lib.CloseDevices()
+        if self.connected_dac_id:
+            self.etherdream_lib.etherdream_stop(self.connected_dac_id)
+            self.etherdream_lib.etherdream_disconnect(self.connected_dac_id)
