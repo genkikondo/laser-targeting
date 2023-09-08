@@ -9,12 +9,14 @@ class Webcam:
         self.capture.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc("M", "J", "P", "G"))
         self.capture.set(cv.CAP_PROP_FPS, 30)
         self.capture.set(cv.CAP_PROP_BUFFERSIZE, 2)
+        self.status = None
+        self.frame = None
 
         def capture_thread():
             while True:
                 if self.capture.isOpened():
                     (self.status, self.frame) = self.capture.read()
-                time.sleep(1 / self.get_fps())
+                time.sleep(1 / max(1, self.get_fps()))
 
         # Start frame capture thread
         self.capture_thread = threading.Thread(target=capture_thread, daemon=True)

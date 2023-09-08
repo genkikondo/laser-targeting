@@ -8,12 +8,36 @@ import numpy as np
 
 sg.theme("DarkAmber")
 
-# TODO: make camera selectable
-cam = camera.Webcam(0)
 
-# TODO: make DAC selectable
+def find_cameras():
+    """Find all available cameras.
+
+    Note that if multiple cameras are available, their indices are not necessarily sequential.
+    We stop looking if we have checked several indices in a row without available cameras.
+    """
+    camera_idx = 0
+    available_camera_indices = []
+    sequential_unavailable_indices = 0
+    while sequential_unavailable_indices <= 5:
+        camera = cv.VideoCapture(camera_idx)
+        if camera.isOpened():
+            available_camera_indices.append(camera_idx)
+            sequential_unavailable_indices = 0
+        else:
+            sequential_unavailable_indices += 1
+        camera_idx += 1
+
+    return available_camera_indices
+
+
+available_cameras = find_cameras()
+cam = camera.Webcam(available_cameras[0])
+
+available_dacs = []
 laser = dac.HeliosDAC()
-laser.initialize()
+num_helios_dacs = laser.initialize()
+for i in range(num_helios_dacs):
+    available_dacs.append((f"Helios DAC: {i}", "helios", i))
 laser.set_color(255, 0, 0, 10)
 
 camera_to_laser_transform = np.identity(3)
@@ -25,6 +49,24 @@ camera_aspect_ratio = camera_frame_size[0] / camera_frame_size[1]
 camera_preview_size = (round(camera_aspect_ratio * 480), 480)
 
 layout = [
+    [
+        sg.Text("Camera"),
+        sg.Combo(
+            available_cameras,
+            default_value=(
+                available_cameras[0] if len(available_cameras) > 0 else None
+            ),
+            enable_events=True,
+            key="-CAMERA_SELECTION-",
+        ),
+        sg.Text("Laser DAC"),
+        sg.Combo(
+            list(map(lambda dac: dac[0], available_dacs)),
+            default_value=(available_dacs[0][0] if len(available_dacs) > 0 else None),
+            enable_events=True,
+            key="-DAC_SELECTION-",
+        ),
+    ],
     [
         sg.Text(
             "Uncalibrated. Click Calibrate to begin calibration.",
@@ -58,6 +100,11 @@ layout = [
 
 # Create the Window
 window = sg.Window("Laser Targeting PoC", layout)
+
+
+def update_available_cameras():
+    available_camera_indices = find_cameras()
+    window["-CAMERA_SELECTION-"].update(available_camera_indices)
 
 
 def camera_to_laser(point):
@@ -96,6 +143,13 @@ while True:
         laser.stop()
         break
 
+    elif event == "-CAMERA_SELECTION-":
+        cam = camera.Webcam(values[event])
+    elif event == "-DAC_SELECTION-":
+        for d in available_dacs:
+            if d[0] == values[event]:
+                # TODO: set the DAC to the selected one
+                print(f"DAC SELECTED: {values[event]}")
     elif event == "-WEBCAM_FRAME-":
         # Transform preview coordinates to camera frame coordinates
         # Preview coordinates have (0, 0) at bottom left
