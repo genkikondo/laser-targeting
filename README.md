@@ -8,7 +8,7 @@ Given a live capture from a webcam and frame coordinates, target a laser driven 
 
 ## Setup and run
 
-C/C++ libraries included under `deps/` were compiled for macos-arm64.
+C/C++ libraries included under `deps/` were compiled for osx-arm64 and linux-x86_64.
 
 - Helios DAC: https://github.com/Grix/helios_dac
 - Ether Dream 4 DAC: https://github.com/kogentech/ether-dream-sdk

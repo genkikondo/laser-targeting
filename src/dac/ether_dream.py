@@ -3,7 +3,6 @@ from .dac import LaserDAC
 import os
 import threading
 import time
-import ether_dream
 
 
 # Define point structure for Ether Dream
@@ -47,7 +46,7 @@ class EtherDreamDAC(LaserDAC):
             os.path.dirname(os.path.abspath(__file__)), "..", "..", "deps"
         )
         self.etherdream_lib = ctypes.cdll.LoadLibrary(
-            os.path.join(deps_dir, "ether_dream", "libEtherDream.dylib")
+            os.path.join(deps_dir, "ether_dream", "linux-x86_64", "libEtherDream.so")
         )
 
     def initialize(self):

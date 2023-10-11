@@ -36,7 +36,7 @@ class HeliosDAC(LaserDAC):
         deps_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "..", "..", "deps"
         )
-        helios_libfile = os.path.join(deps_dir, "helios_dac", "libHeliosDacAPI.dylib")
+        helios_libfile = os.path.join(deps_dir, "helios_dac", "linux-x86_64", "libHeliosDacAPI.so")
         self.helios_lib = ctypes.cdll.LoadLibrary(helios_libfile)
 
     def initialize(self):
