@@ -31,6 +31,7 @@ def find_cameras():
 
 
 available_cameras = find_cameras()
+print(f"{len(available_cameras)} cameras found")
 cam = camera.Webcam(available_cameras[0])
 
 available_dacs = []
